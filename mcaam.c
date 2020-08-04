@@ -51,15 +51,20 @@ I am writing this program primarily to explore various methods of anti-aliasing 
 #define SCATTERER scatter_gaussian
 // How do we visualize the fractal?
 #define VISUALIZER visualize_escape_time
-// Output filename
+// Output image filename
 #define OUTPUT_FILENAME "image.pgm"
+// Defines the maximum pixel value for a 16-bit PGM file
 #define MAX_PGM_PIXEL_VALUE ((1 << 16) - 1)
+// Pattern used to detect the fractint parameter file row with center and zoom data
 #define FRACTINT_COORD_ZOOM_FIELD "center-mag="
+// Path to fractint parameter file for testing
+#define FRACTINT_SCENE_FILE "./test_param_files/fractint_params.par"
 
 int main() {
 
   struct scene_params scene;
-  scene = generate_scene(X_DIM, Y_DIM, ZOOM, CENTER);
+  //scene = generate_scene(X_DIM, Y_DIM, ZOOM, CENTER);
+  scene = read_fractint_param_file(FRACTINT_SCENE_FILE, X_DIM, Y_DIM);
   struct render_params render;
   render.iter_max = N_MAX;
   render.num_initial_pts = NUM_INITIAL_PTS;
@@ -81,6 +86,7 @@ int main() {
 struct scene_params read_fractint_param_file(const char *filename, int xdim, int ydim) {
 
   struct scene_params scene;
+
   FILE * file_pointer;
   char *line = NULL;
   size_t length = 0;
@@ -96,6 +102,7 @@ struct scene_params read_fractint_param_file(const char *filename, int xdim, int
     exit(EXIT_FAILURE);
   }
 
+  // Find the zoom and center data in the fractint parameter file and read it
   while(getline(&line, &length, file_pointer) != -1) {
    if(strstr(line, FRACTINT_COORD_ZOOM_FIELD) != NULL) {
     scan_ret = sscanf(line, " center-mag=%lf/%lf/%lf", 
@@ -105,7 +112,6 @@ struct scene_params read_fractint_param_file(const char *filename, int xdim, int
   }
 
   if(is_coord_zoom_field_detected && scan_ret != EOF) {
-     //printf("x %f\ny %f\nzoom %f\n", real_coord, imag_coord, fractint_zoom);
      double zoom = 1 / fractint_zoom;
      double complex center = CMPLX(real_coord, imag_coord);
      scene = generate_scene(xdim, ydim, zoom, center);
@@ -114,6 +120,7 @@ struct scene_params read_fractint_param_file(const char *filename, int xdim, int
      printf("failed to parse parameter file!\n");
      exit(EXIT_FAILURE);
   }
+
   return(scene);
 }
 
