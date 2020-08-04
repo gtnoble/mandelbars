@@ -29,7 +29,6 @@ struct render_params {
   int periodicity_check_length;
   double exterior_stop_distance;
   double (*visualizer)(double complex, struct render_params);
-  double gamma;
 };
 
 struct plane_params {

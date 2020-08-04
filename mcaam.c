@@ -54,8 +54,6 @@ I am writing this program primarily to explore various methods of anti-aliasing 
 // Output filename
 #define OUTPUT_FILENAME "image.pgm"
 #define MAX_PGM_PIXEL_VALUE ((1 << 16) - 1)
-//#define GAMMA 0.25
-#define GAMMA 1.0
 #define FRACTINT_COORD_ZOOM_FIELD "center-mag="
 
 int main() {
@@ -72,7 +70,6 @@ int main() {
   render.periodicity_check_length = PERIODICITY_LENGTH;
   render.exterior_stop_distance = STOP_DISTANCE;
   render.visualizer = VISUALIZER;
-  render.gamma = GAMMA;
   
   double image[scene.x_dim][scene.y_dim];
   unsigned short uiimage[scene.x_dim][scene.y_dim];
@@ -266,8 +263,6 @@ double visualize_escape_time(double complex complex_coordinate,
     count++;
   }
   double scaled_count = (double)count / params.iter_max; 
-  if(params.gamma != 1.0) scaled_count = pow(scaled_count, params.gamma);
-  //return((double)count);
   return(scaled_count);
 }
 

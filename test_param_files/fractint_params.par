@@ -1,0 +1,6 @@
+test               {
+  reset=2004 type=mandel
+  center-mag=-1.25716839231694433/+0.38008325342230764/105.0408
+  params=0/0 float=y inside=0
+  }
+
