@@ -44,6 +44,14 @@ struct scattered_point {
   double weight;
 };
 
+struct cli_options {
+  struct render_params render;
+  char fractint_parameter_filename[];
+  char output_file_name[];
+  int screen_x_dim;
+  int screen_y_dim;
+};
+
 struct scene_params read_fractint_param_file(const char *filename, int xdim, int ydim); 
 
 int convert_image_to_unit(struct scene_params scene, 

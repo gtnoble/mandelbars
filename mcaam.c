@@ -17,6 +17,8 @@ I am writing this program primarily to explore various methods of anti-aliasing 
 #include <stdbool.h>
 #include <regex.h>
 #include <string.h>
+#include <unistd.h>
+#include <inttypes.h>
 #include "mcaam.h"
 
 //maximum escape time algorithm iterations
@@ -60,7 +62,7 @@ I am writing this program primarily to explore various methods of anti-aliasing 
 // Path to fractint parameter file for testing
 #define FRACTINT_SCENE_FILE "./test_param_files/fractint_params.par"
 
-int main() {
+int main(int argc, char *argv[]) {
 
   struct scene_params scene;
   //scene = generate_scene(X_DIM, Y_DIM, ZOOM, CENTER);
@@ -82,6 +84,75 @@ int main() {
   convert_image_to_unit(scene, image, uiimage);
   write_pgm(OUTPUT_FILENAME, scene, uiimage);
   }
+
+struct cli_options parse_cli(int argc, char *argv[]) {
+  struct render_params render;
+  render.iter_max = N_MAX;
+  render.num_initial_pts = NUM_INITIAL_PTS;
+  render.stop_std_err_mean = STOP_SD_MEAN; 
+  render.kernel_scale = KERNEL_SCALE;
+  render.use_control_variate = USE_CONTROL_VARIATE;
+  render.use_antithetic = USE_ANTITHETIC;
+  render.periodicity_check_length = PERIODICITY_LENGTH;
+  render.exterior_stop_distance = STOP_DISTANCE;
+  render.visualizer = VISUALIZER;
+
+  int command_flag;
+  int x_screen_dimension;
+  int y_screen_dimension;
+  char output_filename[];
+
+  void double_parse(double *render_parameter) {
+    sscanf(optarg, "%lf", render_parameter);
+  }
+
+  void int_parse(int *render_parameter) {
+    sscanf(optarg, "%d", render_parameter);
+  }
+  
+  // TODO write error handling for command line parsing
+  while((command_flag = getopt(argc, argv, "n:p:e:k:cap:d:v:x:y:o:")) != -1)
+    switch(command_flag) {
+      case 'n':
+        int_parse(&render.iter_max);
+        break;
+      case 'p':
+        int_parse(&render.num_initial_pts);
+        break;
+      case 'e':
+        double_parse(&render.stop_std_err_mean);
+        break;
+      case 'k':
+        double_parse(&render.kernel_scale);
+        break;
+      case 'c':
+        render.use_control_variate = true;
+        break;
+      case 'a':
+        render.use_antithetic = true;
+        break;
+      case 'p':
+        int_parse(&render.periodicity_check_length);
+        break;
+      case 'd':
+        double_parse(&render.exterior_stop_distance);
+        break;
+      case 'v':
+      // TODO insert visualizer function pointer assignment
+        break;
+      case 'x':
+        int_parse(&x_screen_dimension);
+        break;
+      case 'y':
+        int_parse(&y_screen_dimension);
+        break;
+      case 'o':
+        filename = optarg;
+        break;
+      //TODO complete '?' and default case exception handling
+
+    }
+}
 
 struct scene_params read_fractint_param_file(const char *filename, int xdim, int ydim) {
 
