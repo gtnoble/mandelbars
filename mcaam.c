@@ -19,6 +19,7 @@ I am writing this program primarily to explore various methods of anti-aliasing 
 #include <string.h>
 #include <unistd.h>
 #include <inttypes.h>
+#include <ctype.h>
 #include "mcaam.h"
 
 //maximum escape time algorithm iterations
@@ -85,7 +86,10 @@ int main(int argc, char *argv[]) {
   write_pgm(OUTPUT_FILENAME, scene, uiimage);
   }
 
-struct cli_options parse_cli(int argc, char *argv[]) {
+struct cli_options parse_cli(int argc, char *argv[], char output_filename[], 
+                             char parameter_filename[]) {
+
+  // Default options
   struct render_params render;
   render.iter_max = N_MAX;
   render.num_initial_pts = NUM_INITIAL_PTS;
@@ -100,7 +104,6 @@ struct cli_options parse_cli(int argc, char *argv[]) {
   int command_flag;
   int x_screen_dimension;
   int y_screen_dimension;
-  char output_filename[];
 
   void double_parse(double *render_parameter) {
     sscanf(optarg, "%lf", render_parameter);
@@ -111,7 +114,7 @@ struct cli_options parse_cli(int argc, char *argv[]) {
   }
   
   // TODO write error handling for command line parsing
-  while((command_flag = getopt(argc, argv, "n:p:e:k:cap:d:v:x:y:o:")) != -1)
+  while((command_flag = getopt(argc, argv, "n:p:e:k:cal:d:v:x:y:o:")) != -1)
     switch(command_flag) {
       case 'n':
         int_parse(&render.iter_max);
@@ -131,7 +134,7 @@ struct cli_options parse_cli(int argc, char *argv[]) {
       case 'a':
         render.use_antithetic = true;
         break;
-      case 'p':
+      case 'l':
         int_parse(&render.periodicity_check_length);
         break;
       case 'd':
@@ -147,11 +150,31 @@ struct cli_options parse_cli(int argc, char *argv[]) {
         int_parse(&y_screen_dimension);
         break;
       case 'o':
-        filename = optarg;
+        output_filename = optarg;
         break;
-      //TODO complete '?' and default case exception handling
-
+      case '?':
+        if(optopt == command_flag) {
+          fprintf(stderr, "Option -%c requires an argument.\n", optopt);
+          exit(EXIT_FAILURE);
+        }
+        else if(isprint(optopt)) {
+          fprintf(stderr, "Unknown option '-%c'.\n", optopt);
+          exit(EXIT_FAILURE);
+        }
+        else{
+          fprintf(stderr, "Unknown option character '\\x%x'.\n", optopt);
+          exit(EXIT_FAILURE);
+        }
+        default:
+          exit(EXIT_FAILURE);
+        
     }
+
+    // TODO implement output filename parsing
+    char output_filename[];
+    struct cli_options cli;
+    cli.render = render;
+    
 }
 
 struct scene_params read_fractint_param_file(const char *filename, int xdim, int ydim) {
@@ -182,6 +205,8 @@ struct scene_params read_fractint_param_file(const char *filename, int xdim, int
    }
   }
 
+  // If the parameter file was successfully read, convert fractint parameters to mandelbars
+  // parameters
   if(is_coord_zoom_field_detected && scan_ret != EOF) {
      double zoom = 1 / fractint_zoom;
      double complex center = CMPLX(real_coord, imag_coord);
