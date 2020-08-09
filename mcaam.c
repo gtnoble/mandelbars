@@ -91,8 +91,8 @@ struct cli_options parse_cli(int argc, char *argv[], char *output_filename[],
   render.num_initial_pts = NUM_INITIAL_PTS;
   render.stop_std_err_mean = STOP_SD_MEAN; 
   render.kernel_scale = KERNEL_SCALE;
-  render.use_control_variate = USE_CONTROL_VARIATE;
-  render.use_antithetic = USE_ANTITHETIC;
+  render.use_control_variate = false;
+  render.use_antithetic = false;
   render.periodicity_check_length = PERIODICITY_LENGTH;
   render.exterior_stop_distance = STOP_DISTANCE;
   render.visualizer = VISUALIZER;
@@ -100,16 +100,24 @@ struct cli_options parse_cli(int argc, char *argv[], char *output_filename[],
   int command_flag;
   int x_screen_dimension;
   int y_screen_dimension;
+  
+  *output_filename = NULL;
 
   void double_parse(double *render_parameter) {
-    sscanf(optarg, "%lf", render_parameter);
+    if(! sscanf(optarg, "%lf", render_parameter)) {
+      fprintf(stderr, "Option %c must have a real number argument\n", command_flag);
+      exit(EXIT_FAILURE);
+    }
   }
 
   void int_parse(int *render_parameter) {
-    sscanf(optarg, "%d", render_parameter);
+    if(! sscanf(optarg, "%d", render_parameter)) {
+      fprintf(stderr, "Option %c must have an integer argument\n", command_flag);
+      exit(EXIT_FAILURE);
+    }
   }
   
-  // TODO write error handling for command line parsing
+  // TODO add scatterer option
   while((command_flag = getopt(argc, argv, "n:p:e:k:cal:d:v:x:y:o:")) != -1)
     switch(command_flag) {
       case 'n':
@@ -167,14 +175,14 @@ struct cli_options parse_cli(int argc, char *argv[], char *output_filename[],
     }
 
     if(optind >= argc) {
-      fprintf(stderr, "No parameter file specified");
+      fprintf(stderr, "No parameter file specified.");
       exit(EXIT_FAILURE);
     }
 
     *parameter_filename = argv[optind];
 
-    if(output_filename == NULL) {
-      fprintf(stderr, "No output filename specified");
+    if(*output_filename == NULL) {
+      fprintf(stderr, "No output filename specified.");
       exit(EXIT_FAILURE);
     }
     
@@ -191,7 +199,7 @@ struct scene_params read_fractint_param_file(const char *filename, int xdim, int
 
   struct scene_params scene;
 
-  FILE * file_pointer;
+  FILE *file_pointer;
   char *line = NULL;
   size_t length = 0;
   double real_coord;
