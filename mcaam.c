@@ -66,28 +66,24 @@ I am writing this program primarily to explore various methods of anti-aliasing 
 int main(int argc, char *argv[]) {
 
   struct scene_params scene;
-  //scene = generate_scene(X_DIM, Y_DIM, ZOOM, CENTER);
-  scene = read_fractint_param_file(FRACTINT_SCENE_FILE, X_DIM, Y_DIM);
   struct render_params render;
-  render.iter_max = N_MAX;
-  render.num_initial_pts = NUM_INITIAL_PTS;
-  render.stop_std_err_mean = STOP_SD_MEAN; 
-  render.kernel_scale = KERNEL_SCALE;
-  render.use_control_variate = USE_CONTROL_VARIATE;
-  render.use_antithetic = USE_ANTITHETIC;
-  render.periodicity_check_length = PERIODICITY_LENGTH;
-  render.exterior_stop_distance = STOP_DISTANCE;
-  render.visualizer = VISUALIZER;
-  
+  char *output_filename;
+  char *parameter_filename;
+  struct cli_options cli;
+  cli = parse_cli(argc, argv, &output_filename, &parameter_filename);
+  //printf("Parameter filename: %s\n", parameter_filename);
+  scene = read_fractint_param_file(parameter_filename, cli.screen_x_dim, cli.screen_y_dim);
+  render = cli.render;
+
   double image[scene.x_dim][scene.y_dim];
   unsigned short uiimage[scene.x_dim][scene.y_dim];
   render_image(scene, render, image);
   convert_image_to_unit(scene, image, uiimage);
-  write_pgm(OUTPUT_FILENAME, scene, uiimage);
+  write_pgm(output_filename, scene, uiimage);
   }
 
-struct cli_options parse_cli(int argc, char *argv[], char output_filename[], 
-                             char parameter_filename[]) {
+struct cli_options parse_cli(int argc, char *argv[], char *output_filename[], 
+                             char *parameter_filename[]) {
 
   // Default options
   struct render_params render;
@@ -150,7 +146,7 @@ struct cli_options parse_cli(int argc, char *argv[], char output_filename[],
         int_parse(&y_screen_dimension);
         break;
       case 'o':
-        output_filename = optarg;
+        *output_filename = optarg;
         break;
       case '?':
         if(optopt == command_flag) {
@@ -170,10 +166,24 @@ struct cli_options parse_cli(int argc, char *argv[], char output_filename[],
         
     }
 
-    // TODO implement output filename parsing
-    char output_filename[];
+    if(optind >= argc) {
+      fprintf(stderr, "No parameter file specified");
+      exit(EXIT_FAILURE);
+    }
+
+    *parameter_filename = argv[optind];
+
+    if(output_filename == NULL) {
+      fprintf(stderr, "No output filename specified");
+      exit(EXIT_FAILURE);
+    }
+    
     struct cli_options cli;
+    cli.screen_x_dim = x_screen_dimension;
+    cli.screen_y_dim = y_screen_dimension;
     cli.render = render;
+    
+    return(cli);
     
 }
 

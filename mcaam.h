@@ -52,8 +52,8 @@ struct cli_options {
 
 struct scene_params read_fractint_param_file(const char *filename, int xdim, int ydim); 
 
-struct cli_options parse_cli(int argc, char *argv[], char output_filename[],
-                             char parameter_filename[]);
+struct cli_options parse_cli(int argc, char *argv[], char *output_filename[],
+                             char *parameter_filename[]);
 
 int convert_image_to_unit(struct scene_params scene, 
                           const double fimage[scene.x_dim][scene.y_dim], 
