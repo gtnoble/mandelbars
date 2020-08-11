@@ -51,6 +51,7 @@ I am writing this program primarily to explore various methods of anti-aliasing 
 #define PERIODICITY_LENGTH 20
 // For exterior distance method, how far away can the iterated point be before stopping
 #define STOP_DISTANCE pow(2,64) 
+// How should the scattered points be distributed?
 #define SCATTERER scatter_gaussian
 // How do we visualize the fractal?
 #define VISUALIZER visualize_escape_time
@@ -101,6 +102,9 @@ struct cli_options parse_cli(int argc, char *argv[], char *output_filename[],
   int x_screen_dimension;
   int y_screen_dimension;
   
+  // We need to turn off anti-aliasing for the null scatterer, so we keep track of it
+  bool is_scatterer_null = false;
+
   *output_filename = NULL;
 
   void double_parse(double *render_parameter) {
@@ -118,7 +122,7 @@ struct cli_options parse_cli(int argc, char *argv[], char *output_filename[],
   }
   
   // TODO add scatterer option
-  while((command_flag = getopt(argc, argv, "n:p:e:k:cal:d:v:x:y:o:")) != -1)
+  while((command_flag = getopt(argc, argv, "n:p:e:k:cal:d:v:x:y:f:s:")) != -1) {
     switch(command_flag) {
       case 'n':
         int_parse(&render.iter_max);
@@ -144,8 +148,31 @@ struct cli_options parse_cli(int argc, char *argv[], char *output_filename[],
       case 'd':
         double_parse(&render.exterior_stop_distance);
         break;
+      // Select the scattering distribution
+      case 's':
+        if(! strcmp(optarg, "uniform"))
+          render.scatterer = scatter_naive;
+        else if(! strcmp(optarg, "gaussian"))
+          render.scatterer = scatter_gaussian;
+        else if(! strcmp(optarg, "null")) {
+          render.scatterer = scatter_null;
+          is_scatterer_null = true;
+        }
+        else {
+          fprintf(stderr, "%s is not a valid scattering distribution", optarg);
+          exit(EXIT_FAILURE);
+        }
+        break;
+      // Select the fractal visualization algorithm
       case 'v':
-      // TODO insert visualizer function pointer assignment
+        if(! strcmp(optarg, "escape_time"))
+          render.visualizer = visualize_escape_time;
+        else if(! strcmp(optarg, "exterior_distance"))
+          render.visualizer = visualize_exterior_distance;
+        else {
+          fprintf(stderr, "%s is not a valid visualization method", optarg);
+          exit(EXIT_FAILURE);
+        }
         break;
       case 'x':
         int_parse(&x_screen_dimension);
@@ -153,8 +180,8 @@ struct cli_options parse_cli(int argc, char *argv[], char *output_filename[],
       case 'y':
         int_parse(&y_screen_dimension);
         break;
-      case 'o':
-        *output_filename = optarg;
+      case 'f':
+        *parameter_filename = optarg;
         break;
       case '?':
         if(optopt == command_flag) {
@@ -171,28 +198,34 @@ struct cli_options parse_cli(int argc, char *argv[], char *output_filename[],
         }
         default:
           exit(EXIT_FAILURE);
-        
     }
+  }
 
-    if(optind >= argc) {
-      fprintf(stderr, "No parameter file specified.");
-      exit(EXIT_FAILURE);
-    }
+  if(optind >= argc) {
+    fprintf(stderr, "No parameter file specified.");
+    exit(EXIT_FAILURE);
+  }
 
-    *parameter_filename = argv[optind];
+  *output_filename = argv[optind];
 
-    if(*output_filename == NULL) {
-      fprintf(stderr, "No output filename specified.");
-      exit(EXIT_FAILURE);
-    }
-    
-    struct cli_options cli;
-    cli.screen_x_dim = x_screen_dimension;
-    cli.screen_y_dim = y_screen_dimension;
-    cli.render = render;
-    
-    return(cli);
-    
+  if(*output_filename == NULL) {
+    fprintf(stderr, "No output filename specified.");
+    exit(EXIT_FAILURE);
+  }
+  
+  // Turn off anti-aliasing, because it is meaningless if you aren't scattering samples
+  if(is_scatterer_null) {
+  render.use_antithetic = false;
+  render.use_control_variate = false;
+  }
+  
+  struct cli_options cli;
+  cli.screen_x_dim = x_screen_dimension;
+  cli.screen_y_dim = y_screen_dimension;
+  cli.render = render;
+  
+  return(cli);
+  
 }
 
 struct scene_params read_fractint_param_file(const char *filename, int xdim, int ydim) {
@@ -324,23 +357,23 @@ void render_image(struct scene_params scene,
           
           // Render point without control variate, if disabled
           if(is_control_variate_inactive) {
-            point = sample_naive(SCATTERER, 
-                                 null_plane,
+            point = sample_naive(null_plane,
                                  point_coords, 
                                  render, 
                                  scene, 
                                  rng);
 
+                                 
                                            }
           else {
             plane = estimate_plane_params(x, y, scene, false, image);
-            point = sample_naive(SCATTERER, 
-                                 plane,
+            point = sample_naive(plane,
                                  point_coords, 
                                  render, 
                                  scene, 
                                  rng);
-                                 
+
+                                                                  
           }
 
           gsl_rstat_add(point, sample_stat_accumulator);
@@ -442,17 +475,17 @@ struct scattered_point scatter_null(gsl_rng * rng) {
   return(scatter);
 }
 
-double sample_naive(struct scattered_point (*scatterer)(gsl_rng *),
-                    struct plane_params control_plane,
+double sample_naive(struct plane_params control_plane,
                     double complex complex_coordinates, 
                     struct render_params render,
                     struct scene_params scene,
                     gsl_rng * rng) {
 
+                    
                       
   double point;
   struct scattered_point scatter;
-  scatter = scatterer(rng);
+  scatter = render.scatterer(rng);
 
   double scaled_scatter_x = scatter.x * render.kernel_scale;
   double scaled_scatter_y = scatter.y * render.kernel_scale;

@@ -29,6 +29,7 @@ struct render_params {
   int periodicity_check_length;
   double exterior_stop_distance;
   double (*visualizer)(double complex, struct render_params);
+  struct scattered_point (*scatterer)(gsl_rng *);
 };
 
 struct plane_params {
@@ -86,13 +87,13 @@ double visualize_escape_time(double complex complex_cooridnates,
 double visualize_exterior_distance(double complex complex_coordinates,
                                    struct render_params render);
 
-double sample_naive(struct scattered_point (*scatterer)(gsl_rng *),
-                    struct plane_params control_plane,
+double sample_naive(struct plane_params control_plane,
                     double complex complex_coordinates, 
                     struct render_params render,
                     struct scene_params scene,
                     gsl_rng * rng);
 
+                    
 struct plane_params estimate_plane_params(int nsample__x,
                                           int nsample__y,
                                           struct scene_params scene,
