@@ -74,11 +74,25 @@ int main(int argc, char *argv[]) {
   //scene = read_fractint_param_file(parameter_filename, cli.screen_x_dim, cli.screen_y_dim);
   //render = cli.render;
 
-  double image[scene.x_dim][scene.y_dim];
-  unsigned short uiimage[scene.x_dim][scene.y_dim];
+  //double image[scene.x_dim][scene.y_dim];
+  double (*image)[scene.x_dim] = malloc(sizeof(*image) * scene.y_dim);
+  if(image == NULL) {
+    fprintf(stderr, "ERROR: Could not allocate memory for framebuffer.");
+    exit(EXIT_FAILURE);
+  }
+
+  //unsigned short uiimage[scene.x_dim][scene.y_dim];
+  unsigned short (*uiimage)[scene.x_dim] = malloc(sizeof(*uiimage) * scene.y_dim);
+  if(uiimage == NULL) {
+    fprintf(stderr, "ERROR: Could not allocate memory for output image.");
+    exit(EXIT_FAILURE);
+  }
+
   render_image(scene, render, image);
   convert_image_to_unit(scene, image, uiimage);
   write_pgm(output_filename, scene, uiimage);
+  free(image);
+  free(uiimage);
   }
 
 void parse_cli(int argc,
@@ -126,8 +140,8 @@ void parse_cli(int argc,
   }
 
   void int_parse(int *render_parameter) {
-    if(! sscanf(optarg, "%d", render_parameter)) {
-      fprintf(stderr, "Option %c must have an integer argument\n", command_flag);
+    if(! sscanf(optarg, "%d", render_parameter) || *render_parameter <= 0) {
+      fprintf(stderr, "Option %c must have a positive integer argument\n", command_flag);
       exit(EXIT_FAILURE);
     }
   }
@@ -276,7 +290,7 @@ struct scene_params read_fractint_param_file(const char *filename, int xdim, int
 
   file_pointer = fopen(filename, "r");
   if(file_pointer == NULL) {
-    printf("failed to open parameter file\n");
+    fprintf(stderr, "failed to open parameter file\n");
     exit(EXIT_FAILURE);
   }
 
