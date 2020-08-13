@@ -68,13 +68,11 @@ int main(int argc, char *argv[]) {
 
   struct scene_params scene;
   struct render_params render;
-  char *output_filename;
-  char *parameter_filename;
-  struct cli_options cli;
-  cli = parse_cli(argc, argv, &output_filename, &parameter_filename);
+  char *output_filename = NULL;
+  parse_cli(argc, argv, &render, &scene, &output_filename);
   //printf("Parameter filename: %s\n", parameter_filename);
-  scene = read_fractint_param_file(parameter_filename, cli.screen_x_dim, cli.screen_y_dim);
-  render = cli.render;
+  //scene = read_fractint_param_file(parameter_filename, cli.screen_x_dim, cli.screen_y_dim);
+  //render = cli.render;
 
   double image[scene.x_dim][scene.y_dim];
   unsigned short uiimage[scene.x_dim][scene.y_dim];
@@ -83,29 +81,42 @@ int main(int argc, char *argv[]) {
   write_pgm(output_filename, scene, uiimage);
   }
 
-struct cli_options parse_cli(int argc, char *argv[], char *output_filename[], 
-                             char *parameter_filename[]) {
+void parse_cli(int argc,
+               char *argv[], 
+               struct render_params *render, 
+               struct scene_params *scene,
+               char *output_filename[]) {
 
+                             
   // Default options
-  struct render_params render;
-  render.iter_max = N_MAX;
-  render.num_initial_pts = NUM_INITIAL_PTS;
-  render.stop_std_err_mean = STOP_SD_MEAN; 
-  render.kernel_scale = KERNEL_SCALE;
-  render.use_control_variate = false;
-  render.use_antithetic = false;
-  render.periodicity_check_length = PERIODICITY_LENGTH;
-  render.exterior_stop_distance = STOP_DISTANCE;
-  render.visualizer = VISUALIZER;
+  render->iter_max = N_MAX;
+  render->num_initial_pts = NUM_INITIAL_PTS;
+  render->stop_std_err_mean = STOP_SD_MEAN; 
+  render->kernel_scale = KERNEL_SCALE;
+  render->use_control_variate = false;
+  render->use_antithetic = false;
+  render->periodicity_check_length = PERIODICITY_LENGTH;
+  render->exterior_stop_distance = STOP_DISTANCE;
+  render->visualizer = VISUALIZER;
+  render->scatterer = SCATTERER;
 
   int command_flag;
   int x_screen_dimension;
   int y_screen_dimension;
+  char *parameter_filename;
+
+  double real_location;
+  double imag_location;
+  double scene_zoom;
   
   // We need to turn off anti-aliasing for the null scatterer, so we keep track of it
   bool is_scatterer_null = false;
 
+  bool does_cli_specify_parameter_file = false;
+  bool does_cli_specify_scene = false;
+
   *output_filename = NULL;
+  parameter_filename = NULL;
 
   void double_parse(double *render_parameter) {
     if(! sscanf(optarg, "%lf", render_parameter)) {
@@ -121,41 +132,40 @@ struct cli_options parse_cli(int argc, char *argv[], char *output_filename[],
     }
   }
   
-  // TODO add scatterer option
-  while((command_flag = getopt(argc, argv, "n:p:e:k:cal:d:v:x:y:f:s:")) != -1) {
+  while((command_flag = getopt(argc, argv, "n:p:e:k:cal:d:v:x:y:f:s:z:")) != -1) {
     switch(command_flag) {
       case 'n':
-        int_parse(&render.iter_max);
+        int_parse(&render->iter_max);
         break;
       case 'p':
-        int_parse(&render.num_initial_pts);
+        int_parse(&render->num_initial_pts);
         break;
       case 'e':
-        double_parse(&render.stop_std_err_mean);
+        double_parse(&render->stop_std_err_mean);
         break;
       case 'k':
-        double_parse(&render.kernel_scale);
+        double_parse(&render->kernel_scale);
         break;
       case 'c':
-        render.use_control_variate = true;
+        render->use_control_variate = true;
         break;
       case 'a':
-        render.use_antithetic = true;
+        render->use_antithetic = true;
         break;
       case 'l':
-        int_parse(&render.periodicity_check_length);
+        int_parse(&render->periodicity_check_length);
         break;
       case 'd':
-        double_parse(&render.exterior_stop_distance);
+        double_parse(&render->exterior_stop_distance);
         break;
       // Select the scattering distribution
       case 's':
         if(! strcmp(optarg, "uniform"))
-          render.scatterer = scatter_naive;
+          render->scatterer = scatter_naive;
         else if(! strcmp(optarg, "gaussian"))
-          render.scatterer = scatter_gaussian;
+          render->scatterer = scatter_gaussian;
         else if(! strcmp(optarg, "null")) {
-          render.scatterer = scatter_null;
+          render->scatterer = scatter_null;
           is_scatterer_null = true;
         }
         else {
@@ -166,9 +176,9 @@ struct cli_options parse_cli(int argc, char *argv[], char *output_filename[],
       // Select the fractal visualization algorithm
       case 'v':
         if(! strcmp(optarg, "escape_time"))
-          render.visualizer = visualize_escape_time;
+          render->visualizer = visualize_escape_time;
         else if(! strcmp(optarg, "exterior_distance"))
-          render.visualizer = visualize_exterior_distance;
+          render->visualizer = visualize_exterior_distance;
         else {
           fprintf(stderr, "%s is not a valid visualization method", optarg);
           exit(EXIT_FAILURE);
@@ -181,7 +191,15 @@ struct cli_options parse_cli(int argc, char *argv[], char *output_filename[],
         int_parse(&y_screen_dimension);
         break;
       case 'f':
-        *parameter_filename = optarg;
+        parameter_filename = optarg;
+        does_cli_specify_parameter_file = true;
+        break;
+      case 'z':
+        if(! sscanf(optarg, "%lf,%lf,%lf", &real_location, &imag_location, &scene_zoom)) {
+          fprintf(stderr, "Failed to parse location parameters");
+          exit(EXIT_FAILURE);
+        }
+        else does_cli_specify_scene = true;
         break;
       case '?':
         if(optopt == command_flag) {
@@ -202,30 +220,45 @@ struct cli_options parse_cli(int argc, char *argv[], char *output_filename[],
   }
 
   if(optind >= argc) {
-    fprintf(stderr, "No parameter file specified.");
+    fprintf(stderr, "No output filename specified.");
     exit(EXIT_FAILURE);
   }
 
   *output_filename = argv[optind];
 
-  if(*output_filename == NULL) {
-    fprintf(stderr, "No output filename specified.");
+  /*
+  if(parameter_filename == NULL) {
+    fprintf(stderr, "No parameter file specified.");
     exit(EXIT_FAILURE);
   }
+  */
   
   // Turn off anti-aliasing, because it is meaningless if you aren't scattering samples
   if(is_scatterer_null) {
-  render.use_antithetic = false;
-  render.use_control_variate = false;
+  render->use_antithetic = false;
+  render->use_control_variate = false;
   }
-  
-  struct cli_options cli;
-  cli.screen_x_dim = x_screen_dimension;
-  cli.screen_y_dim = y_screen_dimension;
-  cli.render = render;
-  
-  return(cli);
-  
+
+  if(does_cli_specify_parameter_file && does_cli_specify_scene) {
+    fprintf(stderr, "Must specify either scene parameters or a parameter file, not both\n");
+    exit(EXIT_FAILURE);
+  }
+  if(! (does_cli_specify_parameter_file || does_cli_specify_scene)) {
+    fprintf(stderr, "Must specify the scene parameters directly (-z) or specify a parameter file (-f)");
+    exit(EXIT_FAILURE);
+  }
+  if(does_cli_specify_parameter_file) {
+    *scene = read_fractint_param_file(parameter_filename, 
+                                     x_screen_dimension, 
+                                     y_screen_dimension);
+  }
+  if(does_cli_specify_scene) {
+    *scene = generate_scene(x_screen_dimension,
+                           y_screen_dimension,
+                           scene_zoom,
+                           CMPLX(real_location, imag_location));
+  }
+
 }
 
 struct scene_params read_fractint_param_file(const char *filename, int xdim, int ydim) {
@@ -264,7 +297,7 @@ struct scene_params read_fractint_param_file(const char *filename, int xdim, int
      scene = generate_scene(xdim, ydim, zoom, center);
   }
   else {
-     printf("failed to parse parameter file!\n");
+     fprintf(stderr, "failed to parse parameter file!\n");
      exit(EXIT_FAILURE);
   }
 
