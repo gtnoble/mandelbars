@@ -409,18 +409,24 @@ void render_image(struct scene_params scene,
                                  render, 
                                  scene, 
                                  rng);
-
-                                 
-                                           }
+          }
+          // Otherwise use planar control variate technique
           else {
-            plane = estimate_plane_params(x, y, scene, false, image);
+            // Estimate the parameters of a plane that approximates the fractal visualization
+            //function.
+            plane = estimate_plane_params(x, y, scene, image);
+            // Subtract the planar approximation from the fractal visualization and evaluate
+            // a scattered point (control variate technique).
+            // This is useful because subtracting the approximation can reduce the variance
+            // of the resulting function. This makes the monte-carlo integration of that 
+            // portion more precise for a given number of points. The MC integrated function 
+            // is then added to the analytically integrated planar approximation and the sum 
+            // is the full convolution integral.
             point = sample_naive(plane,
                                  point_coords, 
                                  render, 
                                  scene, 
                                  rng);
-
-                                                                  
           }
 
           gsl_rstat_add(point, sample_stat_accumulator);
@@ -428,9 +434,10 @@ void render_image(struct scene_params scene,
         }
 
         if(is_control_variate_inactive) image[x][y] = gsl_rstat_mean(sample_stat_accumulator);
-        // Add the MC CV integrated portion to the analytic portion (planar)
+        // If control variate technique used, 
+        //add the MC CV integrated portion to the analytic portion (planar)
         else image[x][y] = gsl_rstat_mean(sample_stat_accumulator) + plane.z0;
-        //printf("%f ", image[x][y]);
+
         gsl_rstat_reset(sample_stat_accumulator);
       }
       //printf("\n");
@@ -444,6 +451,7 @@ double visualize_escape_time(double complex complex_coordinate,
                              struct render_params params) {
   
   double complex z = complex_coordinate;
+
   //cardioid and bulb check
   double x = creal(z);
   double y = cimag(z);
@@ -452,7 +460,10 @@ double visualize_escape_time(double complex complex_coordinate,
   bool is_in_bulb = pow(x + 1.0, 2) + pow(y, 2) <= 1.0/16.0;
   if(is_in_cardioid || is_in_bulb) return(1.0);
 
+  // This never escapes, so its a safe initialization value
   double complex historical_z = CMPLX(0, 0);
+  
+  // Typical mandelbrot set escape time algorithm
   int count = 0;
   while((count < params.iter_max) && ((pow(creal(z), 2) + pow(cimag(z), 2)) < 4)) { 
     z = cpow(z,2) + complex_coordinate;
@@ -463,6 +474,10 @@ double visualize_escape_time(double complex complex_coordinate,
     
     count++;
   }
+
+  // Scaling the iteration count relative to the max iteration count makes specifying the
+  //stopping std. err. mean more intuitive. It can be speficied as a fraction of the 
+  //range of values.
   double scaled_count = (double)count / params.iter_max; 
   return(scaled_count);
 }
@@ -530,39 +545,44 @@ double sample_naive(struct plane_params control_plane,
 
                     
                       
-  double point;
+  double point_value;
   struct scattered_point scatter;
-  scatter = render.scatterer(rng);
 
+  // Scatter a point according to kernel distribution and specified scaling
+  scatter = render.scatterer(rng);
   double scaled_scatter_x = scatter.x * render.kernel_scale;
   double scaled_scatter_y = scatter.y * render.kernel_scale;
-
   double complex complex_scene_scatter = CMPLX(scaled_scatter_x * scene.dreal_dx, 
                                                scaled_scatter_y * scene.dimag_dy);
 
-  point = (render.visualizer(complex_coordinates + complex_scene_scatter, render) -
+  // Evaluate point
+  point_value = (render.visualizer(complex_coordinates + complex_scene_scatter, render) -
                       evaluate_plane(scaled_scatter_x, scaled_scatter_y, control_plane)) / 
                       scatter.weight;
 
+  // Evaluate a point antithetic to the original point and average, if specified.
+  // Antithetic sampling offers improved performance if the fractal visualization function
+  // is convex (or approximately so) over much of the image.
   if(render.use_antithetic) {
-    double point_antithetic;
-    point_antithetic = (render.visualizer(complex_coordinates - complex_scene_scatter, 
+    double point_antithetic_value;
+    point_antithetic_value = (render.visualizer(complex_coordinates - complex_scene_scatter, 
                                           render) -
                         evaluate_plane(-scaled_scatter_x,
                                        -scaled_scatter_y, 
                                        control_plane)) / 
                         scatter.weight;
 
-    point = (point + point_antithetic) / 2;
+    point_value = (point_value + point_antithetic_value) / 2;
   }
 
-return(point);
+return(point_value);
 }
 
-
+// Converts screen coordinates to scene coordinates, with the center of the screen
+// corresponding to the scene center location parameter
 double complex screen_to_scene_coords(int x, int y, struct scene_params scene) {
-  double complex coords = CMPLX((x + scene.shift_x) * scene.dreal_dx, 
-                                (y + scene.shift_y) * scene.dimag_dy) + scene.center;
+  double complex coords = CMPLX((x + scene.screen_to_cartesian_x) * scene.dreal_dx, 
+                                (y + scene.screen_to_cartesian_y) * scene.dimag_dy) + scene.center;
   return(coords);
 }
 
@@ -577,17 +597,18 @@ struct scene_params generate_scene(int x_dim,
   scene.center = center;
   scene.dimag_dy = (zoom / y_dim);
   scene.dreal_dx = (zoom / y_dim);
-  scene.shift_x = (x_dim / 2 - x_dim); 
-  scene.shift_y = (y_dim / 2 - y_dim);
+  scene.screen_to_cartesian_x = (x_dim / 2 - x_dim); 
+  scene.screen_to_cartesian_y = (y_dim / 2 - y_dim);
   return(scene);
 }
 
-//calculate parameters for planar function z = dzdx * x + dzdy * y + z0
-//plane centered at current pixel coordinate
+// For a given pixel location, calculate parameters for a planar approximation function in
+// screen coordinates: z = dzdx * x + dzdy * y + z0 using values from the three previously 
+// calculated adjacent pixels.
+// plane centered at given pixel location
 struct plane_params estimate_plane_params(int screen_x,
                                           int screen_y,
                                           struct scene_params scene,
-                                          bool is_normalized,
                                           double image[scene.x_dim][scene.y_dim]) {
 
   struct plane_params plane;
@@ -597,29 +618,7 @@ struct plane_params estimate_plane_params(int screen_x,
   plane.dzdy = image[screen_x][screen_y - 1] - z_corner;
   plane.z0 = z_corner - plane.dzdx - plane.dzdy;
 
-  if(is_normalized) { 
-    //make sure the extreme point in the AA kernel bounds is positive
-    //if not, bias the plane so that it is
-    double z_far_point = plane.dzdx * .5 + plane.dzdy * .5 + plane.z0;
-    if(z_far_point < 0) plane.z0 = z_corner - z_far_point;
-
-    //normalize the area under the plane within the kernel bounds
-    //normalization is required to treat the function as a distribution
-    double normalization_constant = plane.z0;
-    plane.dzdx = plane.dzdx / normalization_constant;
-    plane.dzdy = plane.dzdy / normalization_constant;
-    plane.z0 = plane.z0 / normalization_constant;
-    //calculate the greatest plane point within the AA kernel bounds
-    //needed for rejection sampling of planar distribution
-    plane.max_val = 0;
-    for(int x = -0.5; x < 0.5; x++) {
-      for(int y = -0.5; y < 0.5; y++) {
-        double z = plane.dzdx * x + plane.dzdy * y + plane.z0;
-        if(z > plane.max_val) plane.max_val = z;
-      }
-    }
-} 
-    return(plane);
+  return(plane);
 }
 
 double evaluate_plane(int x, int y, struct plane_params plane) {

@@ -3,32 +3,39 @@ struct scene_params {
   int y_dim;
   //output image X dimension (pixels)
   int x_dim;
+  
   //length of the imaginary interval covered by the y axis of the screen.
   //the imaginary and complex distance between pixels is calculated from this.
   double zoom;
   //where the center of the screen points to on the complex plane
   double complex center;
+
   double dreal_dx; //increment of real component of complex plane per pixel in screen x
   double dimag_dy; //same as above, but for the imaginary component in screen y 
-  //screen coordinates shifted so that the center of the sceen corresponds to center of scene
-  //difference between cartesian and screen coordinates (add to screen to get cartesian)
-  double shift_x;
-  double shift_y;
+
+  // Add these values to screen coordinates to convert to cartesian
+  double screen_to_cartesian_x;
+  double screen_to_cartesian_y;
 };
 
 struct render_params {
   //maximum escape time algorithm iterations
   int iter_max;
+  // How many fractal iterations should we "look back on" to check for periodicity
+  int periodicity_check_length;
+  // Bailout distance for exterior distance visualization technique
+  double exterior_stop_distance;
+  double (*visualizer)(double complex, struct render_params);
+
   //how many how many samples are taken for the initial variance estimates
   int num_initial_pts;
   //what the standard error of the mean must be to stop the adaptive algorithm for a pixel
   double stop_std_err_mean;
+  // What is the width of the AA kernel? Measure of scale varies by kernel type
   double kernel_scale;
   bool use_control_variate;
   bool use_antithetic;
-  int periodicity_check_length;
-  double exterior_stop_distance;
-  double (*visualizer)(double complex, struct render_params);
+  // What AA kernel should we use?
   struct scattered_point (*scatterer)(gsl_rng *);
 };
 
@@ -97,7 +104,6 @@ double sample_naive(struct plane_params control_plane,
 struct plane_params estimate_plane_params(int nsample__x,
                                           int nsample__y,
                                           struct scene_params scene,
-                                          bool is_normalized,
                                           double image[scene.x_dim][scene.y_dim]);
 
 double evaluate_plane(int x, int y, struct plane_params plane);
