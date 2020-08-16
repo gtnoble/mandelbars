@@ -49,7 +49,6 @@ struct plane_params {
 struct scattered_point {
   double x;
   double y;
-  double weight;
 };
 
 struct cli_options {
@@ -61,13 +60,14 @@ struct cli_options {
 struct scene_params read_fractint_param_file(const char *filename, int xdim, int ydim); 
 
 void parse_cli(int argc, char *argv[], struct render_params *render,
-               struct scene_params *scene, char *output_filename[]);
+               struct scene_params *scene, char *image_output_filename[],
+               char *npoints_output_filename[], char *std_err_output_filename[]);
 
-int convert_image_to_unit(struct scene_params scene, 
+void convert_image_to_unit(struct scene_params scene, 
                           const double fimage[scene.x_dim][scene.y_dim], 
                           unsigned short uiimage[scene.x_dim][scene.y_dim]);
 
-int write_pgm(const char *filename, 
+void write_pgm(const char *filename, 
               struct scene_params scene, 
               unsigned short image[scene.x_dim][scene.y_dim]); 
 

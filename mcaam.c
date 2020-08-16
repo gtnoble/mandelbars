@@ -63,25 +63,25 @@ I am writing this program primarily to explore various methods of anti-aliasing 
 #define FRACTINT_COORD_ZOOM_FIELD "center-mag="
 // Path to fractint parameter file for testing
 #define FRACTINT_SCENE_FILE "./test_param_files/fractint_params.par"
+#define CLI_OPTION_FORMAT "n:p:e:k:cal:d:v:x:y:f:s:L:P:E:"
+#define FRACTINT_COORD_ZOOM_FORMAT " center-mag=%lf/%lf/%lf"
 
 int main(int argc, char *argv[]) {
 
   struct scene_params scene;
   struct render_params render;
-  char *output_filename = NULL;
-  parse_cli(argc, argv, &render, &scene, &output_filename);
-  //printf("Parameter filename: %s\n", parameter_filename);
-  //scene = read_fractint_param_file(parameter_filename, cli.screen_x_dim, cli.screen_y_dim);
-  //render = cli.render;
+  char *image_filename = NULL;
+  char *npoints_filename = NULL;
+  char *std_err_filename = NULL;
+  parse_cli(argc, argv, &render, &scene, 
+            &image_filename, &npoints_filename, &std_err_filename);
 
-  //double image[scene.x_dim][scene.y_dim];
   double (*image)[scene.x_dim] = malloc(sizeof(*image) * scene.y_dim);
   if(image == NULL) {
     fprintf(stderr, "ERROR: Could not allocate memory for framebuffer.");
     exit(EXIT_FAILURE);
   }
 
-  //unsigned short uiimage[scene.x_dim][scene.y_dim];
   unsigned short (*uiimage)[scene.x_dim] = malloc(sizeof(*uiimage) * scene.y_dim);
   if(uiimage == NULL) {
     fprintf(stderr, "ERROR: Could not allocate memory for output image.");
@@ -90,19 +90,21 @@ int main(int argc, char *argv[]) {
 
   render_image(scene, render, image);
   convert_image_to_unit(scene, image, uiimage);
-  write_pgm(output_filename, scene, uiimage);
+  write_pgm(image_filename, scene, uiimage);
   free(image);
   free(uiimage);
-  }
+}
 
 void parse_cli(int argc,
                char *argv[], 
                struct render_params *render, 
                struct scene_params *scene,
-               char *output_filename[]) {
+               char *image_output_filename[],
+               char *npoints_output_filename[],
+               char *std_err_output_filename[]) {
 
                              
-  // Default options
+  // Default render options
   render->iter_max = N_MAX;
   render->num_initial_pts = NUM_INITIAL_PTS;
   render->stop_std_err_mean = STOP_SD_MEAN; 
@@ -114,11 +116,12 @@ void parse_cli(int argc,
   render->visualizer = VISUALIZER;
   render->scatterer = SCATTERER;
 
-  int command_flag;
-  int x_screen_dimension;
-  int y_screen_dimension;
   char *parameter_filename;
 
+  // Scene setup varaibles
+  // Used when the scene is specified via the CLI
+  int x_screen_dimension;
+  int y_screen_dimension;
   double real_location;
   double imag_location;
   double scene_zoom;
@@ -126,19 +129,28 @@ void parse_cli(int argc,
   // We need to turn off anti-aliasing for the null scatterer, so we keep track of it
   bool is_scatterer_null = false;
 
+  // The scene parameters can be specified directly in the CLI or in a parameter file
+  // We need to keep track of this because it doesn't make sense to have both options
+  // selected
   bool does_cli_specify_parameter_file = false;
   bool does_cli_specify_scene = false;
 
-  *output_filename = NULL;
+  *image_output_filename = NULL;
+  *npoints_output_filename = NULL;
+  *std_err_output_filename = NULL;
   parameter_filename = NULL;
+  
+  int command_flag;
 
+  // Helper function to parse command line options that yield a double value
   void double_parse(double *render_parameter) {
     if(! sscanf(optarg, "%lf", render_parameter)) {
       fprintf(stderr, "Option %c must have a real number argument\n", command_flag);
       exit(EXIT_FAILURE);
     }
   }
-
+  
+  //Helper function to parse command line options that yield a positive int value
   void int_parse(int *render_parameter) {
     if(! sscanf(optarg, "%d", render_parameter) || *render_parameter <= 0) {
       fprintf(stderr, "Option %c must have a positive integer argument\n", command_flag);
@@ -146,7 +158,8 @@ void parse_cli(int argc,
     }
   }
   
-  while((command_flag = getopt(argc, argv, "n:p:e:k:cal:d:v:x:y:f:s:z:")) != -1) {
+
+  while((command_flag = getopt(argc, argv, CLI_OPTION_FORMAT)) != -1) {
     switch(command_flag) {
       case 'n':
         int_parse(&render->iter_max);
@@ -154,9 +167,13 @@ void parse_cli(int argc,
       case 'p':
         int_parse(&render->num_initial_pts);
         break;
+      case 'P':
+        *npoints_output_filename = optarg;
       case 'e':
         double_parse(&render->stop_std_err_mean);
         break;
+      case 'E':
+        *std_err_output_filename = optarg;
       case 'k':
         double_parse(&render->kernel_scale);
         break;
@@ -208,13 +225,15 @@ void parse_cli(int argc,
         parameter_filename = optarg;
         does_cli_specify_parameter_file = true;
         break;
-      case 'z':
+      // Parses location parameters from CLI using the CSV format "x,y,zoom"
+      case 'L':
         if(! sscanf(optarg, "%lf,%lf,%lf", &real_location, &imag_location, &scene_zoom)) {
           fprintf(stderr, "Failed to parse location parameters");
           exit(EXIT_FAILURE);
         }
         else does_cli_specify_scene = true;
         break;
+
       case '?':
         if(optopt == command_flag) {
           fprintf(stderr, "Option -%c requires an argument.\n", optopt);
@@ -238,21 +257,15 @@ void parse_cli(int argc,
     exit(EXIT_FAILURE);
   }
 
-  *output_filename = argv[optind];
+  *image_output_filename = argv[optind];
 
-  /*
-  if(parameter_filename == NULL) {
-    fprintf(stderr, "No parameter file specified.");
-    exit(EXIT_FAILURE);
-  }
-  */
-  
   // Turn off anti-aliasing, because it is meaningless if you aren't scattering samples
   if(is_scatterer_null) {
   render->use_antithetic = false;
   render->use_control_variate = false;
   }
 
+  // Parses location parameters from either CLI or from a parameter file
   if(does_cli_specify_parameter_file && does_cli_specify_scene) {
     fprintf(stderr, "Must specify either scene parameters or a parameter file, not both\n");
     exit(EXIT_FAILURE);
@@ -282,11 +295,11 @@ struct scene_params read_fractint_param_file(const char *filename, int xdim, int
   FILE *file_pointer;
   char *line = NULL;
   size_t length = 0;
+
   double real_coord;
   double imag_coord;
   double fractint_zoom;
-  bool is_coord_zoom_field_detected = false;
-  int scan_ret;
+  int scan_ret = 0;
 
   file_pointer = fopen(filename, "r");
   if(file_pointer == NULL) {
@@ -294,31 +307,37 @@ struct scene_params read_fractint_param_file(const char *filename, int xdim, int
     exit(EXIT_FAILURE);
   }
 
-  // Find the zoom and center data in the fractint parameter file and read it
+  // Attempt to find the zoom and center data in the fractint parameter file and read it
   while(getline(&line, &length, file_pointer) != -1) {
    if(strstr(line, FRACTINT_COORD_ZOOM_FIELD) != NULL) {
-    scan_ret = sscanf(line, " center-mag=%lf/%lf/%lf", 
+    scan_ret = sscanf(line, FRACTINT_COORD_ZOOM_FORMAT, 
                       &real_coord, &imag_coord, &fractint_zoom);
-    is_coord_zoom_field_detected = true;
+
+    if(scan_ret != 3) {
+      fprintf(stderr, "Could not parse location field in parameter file.");
+      exit(EXIT_FAILURE);
+    }
+
+    break;
    }
   }
 
   // If the parameter file was successfully read, convert fractint parameters to mandelbars
-  // parameters
-  if(is_coord_zoom_field_detected && scan_ret != EOF) {
+  // parameters and generate a scene
+  if(scan_ret) {
      double zoom = 1 / fractint_zoom;
      double complex center = CMPLX(real_coord, imag_coord);
      scene = generate_scene(xdim, ydim, zoom, center);
   }
   else {
-     fprintf(stderr, "failed to parse parameter file!\n");
+     fprintf(stderr, "Failed to detect location parameters in parameter file!\n");
      exit(EXIT_FAILURE);
   }
 
   return(scene);
 }
 
-int convert_image_to_unit(struct scene_params scene, 
+void convert_image_to_unit(struct scene_params scene, 
                           const double fimage[scene.x_dim][scene.y_dim], 
                           unsigned short uiimage[scene.x_dim][scene.y_dim]) {
 
@@ -349,7 +368,7 @@ int convert_image_to_unit(struct scene_params scene,
 }
 
 
-int write_pgm(const char *filename, 
+void write_pgm(const char *filename, 
               struct scene_params scene, 
               unsigned short image[scene.x_dim][scene.y_dim]) {
   FILE * file_pointer;
@@ -372,6 +391,7 @@ int write_pgm(const char *filename,
   fclose(file_pointer);
 }
 
+//TODO Multithread this function, perhaps on a per-row basis
 void render_image(struct scene_params scene, 
                   struct render_params render,
                   double image[scene.x_dim][scene.y_dim]) {
@@ -513,7 +533,6 @@ struct scattered_point scatter_naive(gsl_rng * rng) {
   struct scattered_point scatter; 
   scatter.x = (gsl_rng_uniform(rng) - .5);
   scatter.y = (gsl_rng_uniform(rng) - .5);
-  scatter.weight = 1;
   return(scatter); 
 }
 
@@ -523,7 +542,6 @@ struct scattered_point scatter_gaussian(gsl_rng * rng) {
   struct scattered_point scatter;
   scatter.x = gsl_ran_gaussian(rng, 1.0);
   scatter.y = gsl_ran_gaussian(rng, 1.0);
-  scatter.weight = 1;
   return(scatter);
 }
 
@@ -533,7 +551,6 @@ struct scattered_point scatter_null(gsl_rng * rng) {
   struct scattered_point scatter;
   scatter.x = 0;
   scatter.y = 0;
-  scatter.weight = 1;
   return(scatter);
 }
 
@@ -557,8 +574,7 @@ double sample_naive(struct plane_params control_plane,
 
   // Evaluate point
   point_value = (render.visualizer(complex_coordinates + complex_scene_scatter, render) -
-                      evaluate_plane(scaled_scatter_x, scaled_scatter_y, control_plane)) / 
-                      scatter.weight;
+                      evaluate_plane(scaled_scatter_x, scaled_scatter_y, control_plane)); 
 
   // Evaluate a point antithetic to the original point and average, if specified.
   // Antithetic sampling offers improved performance if the fractal visualization function
@@ -569,8 +585,7 @@ double sample_naive(struct plane_params control_plane,
                                           render) -
                         evaluate_plane(-scaled_scatter_x,
                                        -scaled_scatter_y, 
-                                       control_plane)) / 
-                        scatter.weight;
+                                       control_plane)); 
 
     point_value = (point_value + point_antithetic_value) / 2;
   }
