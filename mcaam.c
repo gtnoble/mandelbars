@@ -72,9 +72,9 @@ int main(int argc, char *argv[]) {
   struct render_params render;
   char *image_filename = NULL;
   char *npoints_filename = NULL;
-  char *std_err_filename = NULL;
+  char *std_err_mean_filename = NULL;
   parse_cli(argc, argv, &render, &scene, 
-            &image_filename, &npoints_filename, &std_err_filename);
+            &image_filename, &npoints_filename, &std_err_mean_filename);
 
   double (*image)[scene.x_dim] = malloc(sizeof(*image) * scene.y_dim);
   if(image == NULL) {
@@ -88,11 +88,33 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
 
-  render_image(scene, render, image);
+  double (*npoints)[scene.x_dim] = NULL;
+  if(npoints_filename != NULL) {
+    if((npoints = malloc(sizeof(*npoints) * scene.y_dim)) == NULL) {
+      fprintf(stderr, "ERROR: Could not allocate memory for n_points array");
+      exit(EXIT_FAILURE);
+    }
+  }
+  else npoints = NULL;
+
+  double (*std_err_mean)[scene.x_dim] = NULL;
+  if(std_err_mean_filename != NULL) {
+    if((std_err_mean = malloc(sizeof(*std_err_mean) * scene.y_dim)) == NULL) {
+      fprintf(stderr, "ERROR: Could not allocate memory for n_points array");
+      exit(EXIT_FAILURE);
+    }
+  }
+  else std_err_mean = NULL;
+
+  render_image(scene, render, image, npoints, std_err_mean);
   convert_image_to_unit(scene, image, uiimage);
   write_pgm(image_filename, scene, uiimage);
+  if(npoints != NULL) write_csv(npoints_filename, scene, npoints);
+  if(std_err_mean != NULL) write_csv(std_err_mean_filename, scene, std_err_mean);
   free(image);
   free(uiimage);
+  free(npoints);
+  free(std_err_mean);
 }
 
 void parse_cli(int argc,
@@ -101,7 +123,7 @@ void parse_cli(int argc,
                struct scene_params *scene,
                char *image_output_filename[],
                char *npoints_output_filename[],
-               char *std_err_output_filename[]) {
+               char *std_err_mean_output_filename[]) {
 
                              
   // Default render options
@@ -137,7 +159,7 @@ void parse_cli(int argc,
 
   *image_output_filename = NULL;
   *npoints_output_filename = NULL;
-  *std_err_output_filename = NULL;
+  *std_err_mean_output_filename = NULL;
   parameter_filename = NULL;
   
   int command_flag;
@@ -169,11 +191,13 @@ void parse_cli(int argc,
         break;
       case 'P':
         *npoints_output_filename = optarg;
+        break;
       case 'e':
         double_parse(&render->stop_std_err_mean);
         break;
       case 'E':
-        *std_err_output_filename = optarg;
+        *std_err_mean_output_filename = optarg;
+        break;
       case 'k':
         double_parse(&render->kernel_scale);
         break;
@@ -391,10 +415,29 @@ void write_pgm(const char *filename,
   fclose(file_pointer);
 }
 
+void write_csv(const char *filename, struct scene_params scene,
+               double data[scene.x_dim][scene.y_dim]) {
+
+  FILE * file_pointer;
+  file_pointer = fopen(filename, "w");
+
+  for(int y = 0; y < scene.y_dim; y++) {
+    for(int x = 0; x < scene.x_dim; x++) {
+      fprintf(file_pointer, "%f,", data[x][y]);
+    }
+    fprintf(file_pointer, "\n");
+  }
+
+  fclose(file_pointer);
+}
+
+
 //TODO Multithread this function, perhaps on a per-row basis
 void render_image(struct scene_params scene, 
                   struct render_params render,
-                  double image[scene.x_dim][scene.y_dim]) {
+                  double image[scene.x_dim][scene.y_dim],
+                  double npoints[scene.x_dim][scene.y_dim],
+                  double std_err_mean[scene.x_dim][scene.y_dim]) {
 
   // Using a null plane for the control variate estimation disables control variate method
   struct plane_params null_plane;
@@ -457,6 +500,10 @@ void render_image(struct scene_params scene,
         // If control variate technique used, 
         //add the MC CV integrated portion to the analytic portion (planar)
         else image[x][y] = gsl_rstat_mean(sample_stat_accumulator) + plane.z0;
+        
+        if(npoints != NULL) npoints[x][y] = gsl_rstat_n(sample_stat_accumulator);
+        if(std_err_mean != NULL) 
+          std_err_mean[x][y] = gsl_rstat_sd_mean(sample_stat_accumulator);
 
         gsl_rstat_reset(sample_stat_accumulator);
       }

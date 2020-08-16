@@ -61,7 +61,7 @@ struct scene_params read_fractint_param_file(const char *filename, int xdim, int
 
 void parse_cli(int argc, char *argv[], struct render_params *render,
                struct scene_params *scene, char *image_output_filename[],
-               char *npoints_output_filename[], char *std_err_output_filename[]);
+               char *npoints_output_filename[], char *std_err_mean_output_filename[]);
 
 void convert_image_to_unit(struct scene_params scene, 
                           const double fimage[scene.x_dim][scene.y_dim], 
@@ -71,6 +71,9 @@ void write_pgm(const char *filename,
               struct scene_params scene, 
               unsigned short image[scene.x_dim][scene.y_dim]); 
 
+void write_csv(const char *filename, struct scene_params scene,
+               double data[scene.x_dim][scene.y_dim]);
+
 struct scene_params generate_scene(int x_dim, 
                                    int y_dim, 
                                    double zoom, 
@@ -78,7 +81,9 @@ struct scene_params generate_scene(int x_dim,
 
 void render_image(struct scene_params scene, 
                   struct render_params render, 
-                  double image[scene.x_dim][scene.y_dim]); 
+                  double image[scene.x_dim][scene.y_dim],
+                  double npoints[scene.x_dim][scene.y_dim],
+                  double std_err_mean[scene.x_dim][scene.y_dim]); 
 
                   
 double complex screen_to_scene_coords(int x, int y, struct scene_params scene);
