@@ -22,31 +22,16 @@ I am writing this program primarily to explore various methods of anti-aliasing 
 #include <ctype.h>
 #include "mcaam.h"
 
+//Default Options
 //maximum escape time algorithm iterations
-//#define N_MAX 100
 #define N_MAX 1024
-//output image X dimension (pixels)
-#define X_DIM 640
-//output image Y dimension (pixels)
-#define Y_DIM 480
-//length of the imaginary interval covered by the y axis of the screen.
-//the imaginary and complex distance between pixels is calculated from this.
-//#define ZOOM 2.0
-#define ZOOM (1 / 105.0408)
-//where the center of the screen points to on the complex plane
-//#define CENTER CMPLX(-0.5,0.0)
-#define CENTER CMPLX(-1.25716839231694433, 0.38008325342230764)
 //for the adaptive anti-aliasing algortithm
 //how many how many samples are taken for the initial variance estimates
-#define NUM_INITIAL_PTS 3
+#define NUM_INITIAL_PTS 2
 //what the standard error of the mean must be to stop the adaptive algorithm for a pixel
 #define STOP_SD_MEAN 0.05
 // Scale of antialiasing kernel. Length for boxcar, SD for gaussian
 #define KERNEL_SCALE 0.3 
-// Are we using planar control variate technique?
-#define USE_CONTROL_VARIATE false
-// Are we using antithetic variate technique?
-#define USE_ANTITHETIC true
 // What is the max number of iterations that we look back to check for periodicity
 #define PERIODICITY_LENGTH 20
 // For exterior distance method, how far away can the iterated point be before stopping
@@ -55,16 +40,15 @@ I am writing this program primarily to explore various methods of anti-aliasing 
 #define SCATTERER scatter_gaussian
 // How do we visualize the fractal?
 #define VISUALIZER visualize_escape_time
-// Output image filename
-#define OUTPUT_FILENAME "image.pgm"
+
 // Defines the maximum pixel value for a 16-bit PGM file
 #define MAX_PGM_PIXEL_VALUE ((1 << 16) - 1)
 // Pattern used to detect the fractint parameter file row with center and zoom data
 #define FRACTINT_COORD_ZOOM_FIELD "center-mag="
-// Path to fractint parameter file for testing
-#define FRACTINT_SCENE_FILE "./test_param_files/fractint_params.par"
-#define CLI_OPTION_FORMAT "n:p:e:k:cal:d:v:x:y:f:s:L:P:E:"
+// How data is arranged in the fractint parameter file location/zoom row
 #define FRACTINT_COORD_ZOOM_FORMAT " center-mag=%lf/%lf/%lf"
+// Command line option flags and flag types
+#define CLI_OPTION_FORMAT "n:p:e:k:cal:d:v:x:y:f:s:L:P:E:"
 
 int main(int argc, char *argv[]) {
 
@@ -88,6 +72,7 @@ int main(int argc, char *argv[]) {
     exit(EXIT_FAILURE);
   }
 
+  // If requested, allocate memory for the npoints data matrix
   double (*npoints)[scene.x_dim] = NULL;
   if(npoints_filename != NULL) {
     if((npoints = malloc(sizeof(*npoints) * scene.y_dim)) == NULL) {
@@ -97,6 +82,7 @@ int main(int argc, char *argv[]) {
   }
   else npoints = NULL;
 
+  // If requested, allocate memory for the standard error of the mean data matrix
   double (*std_err_mean)[scene.x_dim] = NULL;
   if(std_err_mean_filename != NULL) {
     if((std_err_mean = malloc(sizeof(*std_err_mean) * scene.y_dim)) == NULL) {
@@ -109,8 +95,11 @@ int main(int argc, char *argv[]) {
   render_image(scene, render, image, npoints, std_err_mean);
   convert_image_to_unit(scene, image, uiimage);
   write_pgm(image_filename, scene, uiimage);
+
+  // Write statistical data files, if the memory has been allocated for them.
   if(npoints != NULL) write_csv(npoints_filename, scene, npoints);
   if(std_err_mean != NULL) write_csv(std_err_mean_filename, scene, std_err_mean);
+
   free(image);
   free(uiimage);
   free(npoints);
@@ -188,6 +177,10 @@ void parse_cli(int argc,
         break;
       case 'p':
         int_parse(&render->num_initial_pts);
+        if(render->num_initial_pts < 2) {
+          fprintf(stderr, "ERROR: The number of initial points must be 2 or greater");
+          exit(EXIT_FAILURE);
+        }
         break;
       case 'P':
         *npoints_output_filename = optarg;
@@ -415,6 +408,7 @@ void write_pgm(const char *filename,
   fclose(file_pointer);
 }
 
+// Write a csv file containing the matrix of statistical data.
 void write_csv(const char *filename, struct scene_params scene,
                double data[scene.x_dim][scene.y_dim]) {
 
@@ -423,7 +417,9 @@ void write_csv(const char *filename, struct scene_params scene,
 
   for(int y = 0; y < scene.y_dim; y++) {
     for(int x = 0; x < scene.x_dim; x++) {
-      fprintf(file_pointer, "%f,", data[x][y]);
+      // If the data point is the last on the row, omit the trailing comma
+      if(x == (scene.x_dim - 1)) fprintf(file_pointer, "%f", data[x][y]);
+      else fprintf(file_pointer, "%f,", data[x][y]);
     }
     fprintf(file_pointer, "\n");
   }
