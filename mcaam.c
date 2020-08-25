@@ -86,7 +86,7 @@ int main(int argc, char *argv[]) {
   double (*std_err_mean)[scene.x_dim] = NULL;
   if(std_err_mean_filename != NULL) {
     if((std_err_mean = malloc(sizeof(*std_err_mean) * scene.y_dim)) == NULL) {
-      fprintf(stderr, "ERROR: Could not allocate memory for n_points array");
+      fprintf(stderr, "ERROR: Could not allocate memory for std. err. mean array");
       exit(EXIT_FAILURE);
     }
   }
