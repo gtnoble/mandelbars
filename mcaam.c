@@ -48,7 +48,7 @@ I am writing this program primarily to explore various methods of anti-aliasing 
 // How data is arranged in the fractint parameter file location/zoom row
 #define FRACTINT_COORD_ZOOM_FORMAT " center-mag=%lf/%lf/%lf"
 // Command line option flags and flag types
-#define CLI_OPTION_FORMAT "n:p:e:k:cal:d:v:x:y:f:s:L:P:E:"
+#define CLI_OPTION_FORMAT "hn:p:e:k:cal:d:v:x:y:f:s:L:P:E:"
 
 int main(int argc, char *argv[]) {
 
@@ -169,9 +169,17 @@ void parse_cli(int argc,
     }
   }
   
+  void print_usage() {
+    char usage_parameters[] = "[-ach] [-d exterior_stop_distance] [-e stop_std_err_mean] [-E std_err_mean_output_filename] [-f parameter_filename] [-k kernel_scale] [-l periodicity_check_length] [-L real_location,imag_location,scene_zoom] [-n maximum_iterations] [-p num_initial_points] [-s scattering_distribution] [-v visualization_algorithm] [-x image_x_dimension] [-y image_y_dimension] image_output_filename";
+    printf("Usage: %s %s\n", argv[0], usage_parameters);
+  }
 
   while((command_flag = getopt(argc, argv, CLI_OPTION_FORMAT)) != -1) {
     switch(command_flag) {
+      case 'h':
+        print_usage();
+        exit(EXIT_SUCCESS);
+        break;
       case 'n':
         int_parse(&render->iter_max);
         break;
