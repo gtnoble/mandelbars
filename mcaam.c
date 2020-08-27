@@ -170,8 +170,14 @@ void parse_cli(int argc,
   }
   
   void print_usage() {
-    char usage_parameters[] = "[-ach] [-d exterior_stop_distance] [-e stop_std_err_mean] [-E std_err_mean_output_filename] [-f parameter_filename] [-k kernel_scale] [-l periodicity_check_length] [-L real_location,imag_location,scene_zoom] [-n maximum_iterations] [-p num_initial_points] [-s scattering_distribution] [-v visualization_algorithm] [-x image_x_dimension] [-y image_y_dimension] image_output_filename";
+
+    char usage_parameters[] = "[-ach] [-f parameter_filename | -L real_location,imag_location,scene_zoom] [-d exterior_stop_distance] [-e stop_std_err_mean] [-E std_err_mean_output_filename] [-k kernel_scale] [-l periodicity_check_length] [-n maximum_iterations] [-p num_initial_points] [-s scattering_distribution] [-v visualization_algorithm] [-x image_x_dimension] [-y image_y_dimension] image_output_filename";
+
     printf("Usage: %s %s\n", argv[0], usage_parameters);
+  }
+  
+  void suggest_help() {
+    fprintf(stderr, "Try '%s -h' for usage information.\n", argv[0]);
   }
 
   while((command_flag = getopt(argc, argv, CLI_OPTION_FORMAT)) != -1) {
@@ -186,7 +192,8 @@ void parse_cli(int argc,
       case 'p':
         int_parse(&render->num_initial_pts);
         if(render->num_initial_pts < 2) {
-          fprintf(stderr, "ERROR: The number of initial points must be 2 or greater");
+          fprintf(stderr, "ERROR: The number of initial points must be 2 or greater\n");
+          suggest_help();
           exit(EXIT_FAILURE);
         }
         break;
@@ -225,7 +232,8 @@ void parse_cli(int argc,
           is_scatterer_null = true;
         }
         else {
-          fprintf(stderr, "%s is not a valid scattering distribution", optarg);
+          fprintf(stderr, "%s is not a valid scattering distribution\n", optarg);
+          suggest_help(); 
           exit(EXIT_FAILURE);
         }
         break;
@@ -236,7 +244,8 @@ void parse_cli(int argc,
         else if(! strcmp(optarg, "exterior_distance"))
           render->visualizer = visualize_exterior_distance;
         else {
-          fprintf(stderr, "%s is not a valid visualization method", optarg);
+          fprintf(stderr, "%s is not a valid visualization method\n", optarg);
+          suggest_help();
           exit(EXIT_FAILURE);
         }
         break;
@@ -253,7 +262,8 @@ void parse_cli(int argc,
       // Parses location parameters from CLI using the CSV format "x,y,zoom"
       case 'L':
         if(! sscanf(optarg, "%lf,%lf,%lf", &real_location, &imag_location, &scene_zoom)) {
-          fprintf(stderr, "Failed to parse location parameters");
+          fprintf(stderr, "Failed to parse location parameters\n");
+          suggest_help();
           exit(EXIT_FAILURE);
         }
         else does_cli_specify_scene = true;
@@ -262,23 +272,28 @@ void parse_cli(int argc,
       case '?':
         if(optopt == command_flag) {
           fprintf(stderr, "Option -%c requires an argument.\n", optopt);
+          suggest_help();
           exit(EXIT_FAILURE);
         }
         else if(isprint(optopt)) {
           fprintf(stderr, "Unknown option '-%c'.\n", optopt);
+          suggest_help();
           exit(EXIT_FAILURE);
         }
         else{
           fprintf(stderr, "Unknown option character '\\x%x'.\n", optopt);
+          suggest_help();
           exit(EXIT_FAILURE);
         }
         default:
           exit(EXIT_FAILURE);
+          suggest_help();
     }
   }
 
   if(optind >= argc) {
-    fprintf(stderr, "No output filename specified.");
+    fprintf(stderr, "No output filename specified.\n");
+    suggest_help();
     exit(EXIT_FAILURE);
   }
 
@@ -293,10 +308,12 @@ void parse_cli(int argc,
   // Parses location parameters from either CLI or from a parameter file
   if(does_cli_specify_parameter_file && does_cli_specify_scene) {
     fprintf(stderr, "Must specify either scene parameters or a parameter file, not both\n");
+    suggest_help();
     exit(EXIT_FAILURE);
   }
   if(! (does_cli_specify_parameter_file || does_cli_specify_scene)) {
-    fprintf(stderr, "Must specify the scene parameters directly (-z) or specify a parameter file (-f)");
+    fprintf(stderr, "Must specify the scene parameters directly (-z) or specify a parameter file (-f)\n");
+    suggest_help();
     exit(EXIT_FAILURE);
   }
   if(does_cli_specify_parameter_file) {
@@ -339,7 +356,7 @@ struct scene_params read_fractint_param_file(const char *filename, int xdim, int
                       &real_coord, &imag_coord, &fractint_zoom);
 
     if(scan_ret != 3) {
-      fprintf(stderr, "Could not parse location field in parameter file.");
+      fprintf(stderr, "Could not parse location field in parameter file.\n");
       exit(EXIT_FAILURE);
     }
 
