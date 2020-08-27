@@ -22,24 +22,40 @@ I am writing this program primarily to explore various methods of anti-aliasing 
 #include <ctype.h>
 #include "mcaam.h"
 
-//Default Options
+//Default Options ------------------------------------------------------------
+
+// Default x dimension of output image, in pixels
+#define IMAGE_X_DIMENSION 128
+
+// Default y dimension of output image, in pixels
+#define IMAGE_Y_DIMENSION 128
+
 //maximum escape time algorithm iterations
 #define N_MAX 1024
+
 //for the adaptive anti-aliasing algortithm
 //how many how many samples are taken for the initial variance estimates
 #define NUM_INITIAL_PTS 2
+
 //what the standard error of the mean must be to stop the adaptive algorithm for a pixel
 #define STOP_SD_MEAN 0.05
+
 // Scale of antialiasing kernel. Length for boxcar, SD for gaussian
 #define KERNEL_SCALE 0.3 
+
 // What is the max number of iterations that we look back to check for periodicity
 #define PERIODICITY_LENGTH 20
+
 // For exterior distance method, how far away can the iterated point be before stopping
 #define STOP_DISTANCE pow(2,64) 
+
 // How should the scattered points be distributed?
 #define SCATTERER scatter_gaussian
+
 // How do we visualize the fractal?
 #define VISUALIZER visualize_escape_time
+
+// Magic Numbers / Values ---------------------------------------------------
 
 // Defines the maximum pixel value for a 16-bit PGM file
 #define MAX_PGM_PIXEL_VALUE ((1 << 16) - 1)
@@ -131,8 +147,8 @@ void parse_cli(int argc,
 
   // Scene setup varaibles
   // Used when the scene is specified via the CLI
-  int x_screen_dimension;
-  int y_screen_dimension;
+  int x_screen_dimension = IMAGE_Y_DIMENSION;
+  int y_screen_dimension = IMAGE_X_DIMENSION;
   double real_location;
   double imag_location;
   double scene_zoom;
@@ -182,13 +198,16 @@ void parse_cli(int argc,
 
   while((command_flag = getopt(argc, argv, CLI_OPTION_FORMAT)) != -1) {
     switch(command_flag) {
+      // Print usage statement
       case 'h':
         print_usage();
         exit(EXIT_SUCCESS);
         break;
+      // Select max iterations
       case 'n':
         int_parse(&render->iter_max);
         break;
+      // Select number of points used to calculate initial pixel error
       case 'p':
         int_parse(&render->num_initial_pts);
         if(render->num_initial_pts < 2) {
@@ -197,31 +216,39 @@ void parse_cli(int argc,
           exit(EXIT_FAILURE);
         }
         break;
+      // Output filename for number of points calculated for image pixels
       case 'P':
         *npoints_output_filename = optarg;
         break;
+      // Set the maximum standard error of the mean for the AA algorithm
       case 'e':
         double_parse(&render->stop_std_err_mean);
         break;
+      // Output filename for standard error of mean for image pixels
       case 'E':
         *std_err_mean_output_filename = optarg;
         break;
+      // Set the AA kernel scale
       case 'k':
         double_parse(&render->kernel_scale);
         break;
+      // Activate control variate technique
       case 'c':
         render->use_control_variate = true;
         break;
+      // Activate antithetic variate technique
       case 'a':
         render->use_antithetic = true;
         break;
+      // Set the periodicity check length
       case 'l':
         int_parse(&render->periodicity_check_length);
         break;
+      // Set the stop distance for the exterior distance visualization method
       case 'd':
         double_parse(&render->exterior_stop_distance);
         break;
-      // Select the scattering distribution
+      // Select the scattering distribution / kernel shape
       case 's':
         if(! strcmp(optarg, "uniform"))
           render->scatterer = scatter_naive;
@@ -249,16 +276,20 @@ void parse_cli(int argc,
           exit(EXIT_FAILURE);
         }
         break;
+      // Set the output image x dimension
       case 'x':
         int_parse(&x_screen_dimension);
         break;
+      // Set the output image y dimension
       case 'y':
         int_parse(&y_screen_dimension);
         break;
+      // Select fractint parameter filename (if desired)
       case 'f':
         parameter_filename = optarg;
         does_cli_specify_parameter_file = true;
         break;
+      // Select fractal location and scale (if not using fractint parameter file)
       // Parses location parameters from CLI using the CSV format "x,y,zoom"
       case 'L':
         if(! sscanf(optarg, "%lf,%lf,%lf", &real_location, &imag_location, &scene_zoom)) {
