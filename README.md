@@ -17,8 +17,7 @@ Type `make` and copy the resulting mandelbars executable to the desired location
 `mandelbars [-ach] [-f parameter_filename | -L real_location,imag_location,
 scene_zoom] [-d exterior_stop_distance] [-e stop_std_err_mean] [-E std_err_mean_output_filenam
 e] [-k kernel_scale] [-l periodicity_check_length] [-n maximum_iterations] [-p num_initial_poi
-nts] [-s scattering_distribution] [-v visualization_algorithm] [-x image_x_dimension] [-y imag
-e_y_dimension] image_output_filename` 
+nts] [-s scattering_distribution] [-v visualization_algorithm] [-x image_x_dimension] [-y image_y_dimension] image_output_filename` 
 
 ## Command line options
 `-a` - Use antithetic sampling. Improves speed in images with large numbers of monotonic sections.
