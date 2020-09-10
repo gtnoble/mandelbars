@@ -8,12 +8,12 @@ The currently implemented anti-aliasing algorithm is an adaptive Monte Carlo alg
 The program is targeted at Linux / Unix / POSIX systems and currently has a command line interface.
 
 ## Dependencies
-The only dependencies are the C and Unix standard libraries as well as the GNU Scientific Library. GSL is used for random number generation and running statistics functionality used for the anti-aliasing functionality. The C compiler must support VLAs and complex numbers.
+The only dependencies are the C and Unix standard libraries as well as the GNU Scientific Library. GSL is used for random number generation and running statistics functionality used for the anti-aliasing algorithm. The C compiler must support VLAs and complex numbers.
 
 ## Build instructions
 Type `make` and copy the resulting mandelbars executable to the desired location. Currently only supports GCC, but I imagine the code will compile on any C99 compliant compiler.
 
-## Usage
+### Usage
 `mandelbars [-ach] [-f parameter_filename | -L real_location,imag_location,
 scene_zoom] [-d exterior_stop_distance] [-e stop_std_err_mean] [-E std_err_mean_output_filenam
 e] [-k kernel_scale] [-l periodicity_check_length] [-n maximum_iterations] [-p num_initial_poi
